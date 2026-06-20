@@ -1,0 +1,24 @@
+{
+  "name": "agent-orchestration-framework",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "flue dev --target node",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "flue:run:triage-ci-failure": "flue run triage-ci-failure --target node"
+  },
+  "dependencies": {
+    "@flue/runtime": "1.0.0-beta.2",
+    "valibot": "1.4.1"
+  },
+  "devDependencies": {
+    "@flue/cli": "1.0.0-beta.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}

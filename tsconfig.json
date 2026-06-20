@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "flue.config.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "agents/**/*.ts",
+    "workflows/**/*.ts",
+    ".flue/**/*.ts"
+  ],
+  "exclude": ["dist"]
+}
