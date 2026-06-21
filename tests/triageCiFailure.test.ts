@@ -149,6 +149,73 @@ describe("runTriageCiFailureLoop", () => {
     });
   });
 
+  it("passes stacked pull request creation into workflow runs", async () => {
+    const stackedRequests: StackedPullRequestRequest[] = [];
+    const workers = {
+      cheap_ci_worker: {
+        profile: "cheap_ci_worker",
+        async attempt() {
+          throw new Error("Cheap worker should not run.");
+        },
+      },
+      deep_ci_worker: {
+        profile: "deep_ci_worker",
+        async attempt() {
+          return {
+            status: "resolved" as const,
+            summary: "Correctness fix prepared.",
+            mutation: {
+              changedFiles: ["src/widgets.ts"],
+              commitSha: "def456",
+              pushed: true,
+              delivery: "stacked_pr" as const,
+              risk: "risky" as const,
+            },
+          };
+        },
+      },
+    } satisfies CiFailureWorkerMap;
+
+    const results = await runTriageCiFailureLoop([candidate], {
+      routerModel: {
+        async classify() {
+          return {
+            difficulty: "deep",
+            confidence: 0.95,
+            rationale: "Semantic test failure.",
+          };
+        },
+      },
+      workers,
+      stackedPullRequests: {
+        async createStackedPullRequest(request) {
+          stackedRequests.push(request);
+
+          return {
+            number: 77,
+            url: "https://example.test/acme/widgets/pull/77",
+            headRef: "taskblaster/repair-42",
+          };
+        },
+      },
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      status: "completed",
+      result: {
+        status: "resolved",
+        worker: "deep_ci_worker",
+        stackedPullRequest: { number: 77 },
+      },
+    });
+    expect(stackedRequests).toHaveLength(1);
+    expect(stackedRequests[0]).toMatchObject({
+      baseRef: "fix-lint",
+      originalPullRequest: { number: 42 },
+    });
+  });
+
   it("does not route or attempt workers when the Mutation Cap is exhausted", async () => {
     let routed = false;
     let attempted = false;

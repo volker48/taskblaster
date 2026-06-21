@@ -145,6 +145,7 @@ export async function runTriageCiFailureLoop(
   const workflow = new TriageCiFailureWorkflow({
     routerModel: dependencies.routerModel,
     workers,
+    stackedPullRequests: dependencies.stackedPullRequests,
     humanEscalationPublisher: dependencies.humanEscalationPublisher,
   });
   const runnableCandidates = mutationCap ? candidates.slice(0, mutationCap.available) : candidates;
