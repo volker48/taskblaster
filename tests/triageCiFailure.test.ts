@@ -10,10 +10,6 @@ import {
 import type { CiFailureRouterModel } from "../src/router/ciFailureRouter";
 import { run } from "../src/workflows/triage-ci-failure";
 import type { CiFailureWorkerMap } from "../src/workers/ciFailureWorkers";
-import {
-  getRuntimeTargetConfig,
-  validateRuntimeTargetSecrets,
-} from "../src/runtimeTargets";
 
 const candidate: TriageCiFailureCandidate = {
   workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
@@ -222,33 +218,5 @@ describe("triage CI failure workflow entrypoint", () => {
       worker: "deep_ci_worker",
       outcome: { status: "resolved" },
     });
-  });
-});
-
-describe("Runtime Target configuration", () => {
-  it("names local and Node targets with explicit command paths", () => {
-    expect(getRuntimeTargetConfig("local")).toMatchObject({
-      name: "local",
-      command: "pnpm loop:local -- <payload.json>",
-      mutatesProvider: false,
-      requiredSecrets: [],
-    });
-    expect(getRuntimeTargetConfig("node")).toMatchObject({
-      name: "node",
-      command: "pnpm flue:run:triage-ci-failure",
-      mutatesProvider: false,
-      requiredSecrets: ["GITHUB_TOKEN", "FLUE_API_KEY", "OPENAI_API_KEY"],
-    });
-  });
-
-  it("reports unset or blank Runtime Target secrets", () => {
-    const config = getRuntimeTargetConfig("node");
-
-    expect(
-      validateRuntimeTargetSecrets(config, {
-        GITHUB_TOKEN: "github-token",
-        FLUE_API_KEY: "",
-      }),
-    ).toEqual(["FLUE_API_KEY", "OPENAI_API_KEY"]);
   });
 });

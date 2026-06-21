@@ -36,7 +36,6 @@ export type TriageCiFailureDependencies = {
 export type TriageCiFailureLoopDependencies = {
   routerModel: CiFailureRouterModel;
   workers: Parameters<typeof validateCiFailureWorkerMap>[0];
-  mutationCap?: MutationCap;
 };
 
 export type TriageCiFailureLoopResult =
@@ -51,27 +50,11 @@ export type TriageCiFailureLoopResult =
       reason: string;
     }
   | {
-      status: "capped";
-      workflowName: typeof TRIAGE_CI_FAILURE_WORKFLOW;
-      candidate: TriageCiFailureCandidate;
-      reason: string;
-      mutationCap: MutationCapSnapshot;
-    }
-  | {
       status: "completed";
       workflowName: typeof TRIAGE_CI_FAILURE_WORKFLOW;
       candidate: TriageCiFailureCandidate;
       result: TriageCiFailureResult;
     };
-
-export type MutationCap = {
-  readonly limit: number;
-  readonly active: number;
-};
-
-export type MutationCapSnapshot = MutationCap & {
-  readonly available: number;
-};
 
 export class TriageCiFailureWorkflow
   implements Workflow<TriageCiFailureCandidate, TriageCiFailureResult>
@@ -117,26 +100,15 @@ export async function runTriageCiFailureLoop(
     routerModel: dependencies.routerModel,
     workers,
   });
-  const mutationCap = normalizeMutationCap(dependencies.mutationCap);
-  const runnableCandidates = mutationCap
-    ? candidates.slice(0, mutationCap.available)
-    : candidates;
-  const cappedResults = mutationCap
-    ? candidates.slice(mutationCap.available).map((candidate) =>
-        mutationCappedResult(candidate, mutationCap),
-      )
-    : [];
 
-  const completedResults = await Promise.all(
-    runnableCandidates.map(async (candidate) => ({
+  return Promise.all(
+    candidates.map(async (candidate) => ({
       status: "completed" as const,
       workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
       candidate,
       result: await workflow.run(candidate),
     })),
   );
-
-  return [...completedResults, ...cappedResults];
 }
 
 export async function triageCiFailureWorkflow(
@@ -233,40 +205,4 @@ function configurationFailureReason(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
   return `CI failure loop is misconfigured: ${message}`;
-}
-
-function normalizeMutationCap(cap: MutationCap | undefined): MutationCapSnapshot | null {
-  if (!cap) {
-    return null;
-  }
-
-  const limit = nonNegativeInteger(cap.limit, "Mutation Cap limit");
-  const active = nonNegativeInteger(cap.active, "active Repair Mutations");
-
-  return {
-    limit,
-    active,
-    available: Math.max(limit - active, 0),
-  };
-}
-
-function nonNegativeInteger(value: number, label: string): number {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`${label} must be a non-negative integer.`);
-  }
-
-  return value;
-}
-
-function mutationCappedResult(
-  candidate: TriageCiFailureCandidate,
-  mutationCap: MutationCapSnapshot,
-): TriageCiFailureLoopResult {
-  return {
-    status: "capped",
-    workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
-    candidate,
-    reason: "Mutation Cap exhausted; candidate deferred before Repair Mutation.",
-    mutationCap,
-  };
 }
