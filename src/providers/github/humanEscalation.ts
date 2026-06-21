@@ -13,9 +13,7 @@ export interface GitHubIssueCommentCreator {
   createIssueComment(request: GitHubIssueCommentRequest): Promise<void>;
 }
 
-export function createGitHubHumanEscalationPublisher(
-  comments: GitHubIssueCommentCreator,
-) {
+export function createGitHubHumanEscalationPublisher(comments: GitHubIssueCommentCreator) {
   return {
     async publish(output: HumanEscalationOutput): Promise<void> {
       await comments.createIssueComment({
@@ -30,9 +28,7 @@ export function createGitHubHumanEscalationPublisher(
   };
 }
 
-export function buildHumanEscalationCommentBody(
-  output: HumanEscalationOutput,
-): string {
+export function buildHumanEscalationCommentBody(output: HumanEscalationOutput): string {
   const candidate = output.candidate;
   const failures = candidate.input.failures.map(formatFailure).join("\n");
 

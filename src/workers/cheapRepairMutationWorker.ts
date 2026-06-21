@@ -49,15 +49,11 @@ export function createCheapRepairMutationWorker(
   };
 }
 
-export function planMechanicalRepair(
-  request: CiFailureRouteRequest,
-): RepairMutationPlan | null {
+export function planMechanicalRepair(request: CiFailureRouteRequest): RepairMutationPlan | null {
   const failureKinds = request.input.failures.map((failure) =>
     classifyMechanicalFailure(failure.name),
   );
-  const mechanicalKinds = failureKinds.filter(
-    (kind): kind is RepairMutationKind => kind !== null,
-  );
+  const mechanicalKinds = failureKinds.filter((kind): kind is RepairMutationKind => kind !== null);
 
   if (mechanicalKinds.length !== request.input.failures.length) {
     return null;

@@ -1,9 +1,6 @@
 export type RuntimeTargetName = "local" | "node";
 
-export type RuntimeSecretName =
-  | "GITHUB_TOKEN"
-  | "FLUE_API_KEY"
-  | "OPENAI_API_KEY";
+export type RuntimeSecretName = "GITHUB_TOKEN" | "FLUE_API_KEY" | "OPENAI_API_KEY";
 
 export type RuntimeTargetConfig = {
   readonly name: RuntimeTargetName;
@@ -27,9 +24,7 @@ export const RUNTIME_TARGETS = {
   },
 } as const satisfies Record<RuntimeTargetName, RuntimeTargetConfig>;
 
-export function getRuntimeTargetConfig(
-  name: RuntimeTargetName,
-): RuntimeTargetConfig {
+export function getRuntimeTargetConfig(name: RuntimeTargetName): RuntimeTargetConfig {
   return RUNTIME_TARGETS[name];
 }
 

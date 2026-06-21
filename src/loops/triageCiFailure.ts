@@ -99,9 +99,10 @@ export type MutationCapSnapshot = MutationCap & {
   readonly available: number;
 };
 
-export class TriageCiFailureWorkflow
-  implements Workflow<TriageCiFailureCandidate, TriageCiFailureResult>
-{
+export class TriageCiFailureWorkflow implements Workflow<
+  TriageCiFailureCandidate,
+  TriageCiFailureResult
+> {
   readonly name = TRIAGE_CI_FAILURE_WORKFLOW;
 
   constructor(private readonly dependencies: TriageCiFailureDependencies) {}
@@ -146,13 +147,11 @@ export async function runTriageCiFailureLoop(
     workers,
     humanEscalationPublisher: dependencies.humanEscalationPublisher,
   });
-  const runnableCandidates = mutationCap
-    ? candidates.slice(0, mutationCap.available)
-    : candidates;
+  const runnableCandidates = mutationCap ? candidates.slice(0, mutationCap.available) : candidates;
   const cappedResults = mutationCap
-    ? candidates.slice(mutationCap.available).map((candidate) =>
-        mutationCappedResult(candidate, mutationCap),
-      )
+    ? candidates
+        .slice(mutationCap.available)
+        .map((candidate) => mutationCappedResult(candidate, mutationCap))
     : [];
 
   const completedResults: readonly TriageCiFailureLoopResult[] = await Promise.all(
@@ -307,9 +306,7 @@ function needsStackedPullRequest(
   }
 
   return (
-    mutation.delivery === "stacked_pr" ||
-    mutation.risk === "extensive" ||
-    mutation.risk === "risky"
+    mutation.delivery === "stacked_pr" || mutation.risk === "extensive" || mutation.risk === "risky"
   );
 }
 
@@ -328,7 +325,8 @@ function buildHumanEscalationOutput(
     attemptedWorkers: result.attemptedWorkers,
     failureSummary: result.outcome.summary,
     recommendedAction:
-      "Review the failed checks and automation summary, then apply a manual fix or close the candidate.",
+      "Review the failed checks and automation summary, then apply a manual fix " +
+      "or close the candidate.",
   };
 }
 

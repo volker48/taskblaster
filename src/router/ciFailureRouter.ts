@@ -13,8 +13,7 @@ export type CiFailureRouterModelOutput = {
   rationale: string;
 };
 
-export type CiFailureRouteDecision =
-  RouteDecision<WorkerProfile> & CiFailureRouterModelOutput;
+export type CiFailureRouteDecision = RouteDecision<WorkerProfile> & CiFailureRouterModelOutput;
 
 export type CiFailureRouteRequest = TriageCiFailureCandidate;
 
@@ -22,9 +21,7 @@ export type CiFailureRouterModel = {
   classify(request: CiFailureRouteRequest): Promise<CiFailureRouterModelOutput>;
 };
 
-export class CiFailureRouter
-  implements Router<CiFailureRouteRequest, WorkerProfile>
-{
+export class CiFailureRouter implements Router<CiFailureRouteRequest, WorkerProfile> {
   constructor(private readonly model: CiFailureRouterModel) {}
 
   route(request: CiFailureRouteRequest): Promise<CiFailureRouteDecision> {
@@ -40,9 +37,7 @@ export async function routeCiFailure(
   return normalizeDecision(decision);
 }
 
-function normalizeDecision(
-  decision: CiFailureRouterModelOutput,
-): CiFailureRouteDecision {
+function normalizeDecision(decision: CiFailureRouterModelOutput): CiFailureRouteDecision {
   const difficulty = decision.difficulty;
   const workerId = chooseWorker(difficulty);
 

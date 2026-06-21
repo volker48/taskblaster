@@ -46,9 +46,10 @@ type FailedGitHubCheckRun = GitHubCheckRun & {
   readonly status: "completed";
 };
 
-export class GitHubCiFailureDetector
-  implements Detector<GitHubCiObservation, TriageCiFailureCandidate>
-{
+export class GitHubCiFailureDetector implements Detector<
+  GitHubCiObservation,
+  TriageCiFailureCandidate
+> {
   detect(observation: GitHubCiObservation): readonly TriageCiFailureCandidate[] {
     return detectGitHubCiFailures(observation);
   }
@@ -57,9 +58,7 @@ export class GitHubCiFailureDetector
 export function detectGitHubCiFailures(
   observation: GitHubCiObservation,
 ): readonly TriageCiFailureCandidate[] {
-  const failures = observation.checkRuns
-    .filter(isFailedCheckRun)
-    .map(toCiFailureSignal);
+  const failures = observation.checkRuns.filter(isFailedCheckRun).map(toCiFailureSignal);
 
   if (failures.length === 0) {
     return [];
@@ -82,9 +81,7 @@ export function detectGitHubCiFailures(
   ];
 }
 
-function isFailedCheckRun(
-  checkRun: GitHubCheckRun,
-): checkRun is FailedGitHubCheckRun {
+function isFailedCheckRun(checkRun: GitHubCheckRun): checkRun is FailedGitHubCheckRun {
   return checkRun.status === "completed" && isFailureConclusion(checkRun.conclusion);
 }
 

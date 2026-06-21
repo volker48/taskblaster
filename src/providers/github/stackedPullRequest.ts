@@ -25,9 +25,7 @@ export type StackedPullRequestResult = {
 };
 
 export interface StackedPullRequestCreator {
-  createStackedPullRequest(
-    request: StackedPullRequestRequest,
-  ): Promise<StackedPullRequestResult>;
+  createStackedPullRequest(request: StackedPullRequestRequest): Promise<StackedPullRequestResult>;
 }
 
 export function buildStackedPullRequestRequest(

@@ -1,0 +1,4 @@
+{
+  "ignorePatterns": [".agents/**"],
+  "printWidth": 100
+}

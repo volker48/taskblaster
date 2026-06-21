@@ -1,7 +1,4 @@
-export {
-  detectGitLabCiFailures,
-  GitLabCiFailureDetector,
-} from "./ciFailureDetector.ts";
+export { detectGitLabCiFailures, GitLabCiFailureDetector } from "./ciFailureDetector.ts";
 export type {
   GitLabCiObservation,
   GitLabMergeRequest,

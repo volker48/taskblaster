@@ -1,19 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  TRIAGE_CI_FAILURE_WORKFLOW,
-  type TriageCiFailureCandidate,
-} from "../src/domain";
-import {
-  runTriageCiFailureLoop,
-  triageCiFailureWorkflow,
-} from "../src/loops/triageCiFailure";
+import { TRIAGE_CI_FAILURE_WORKFLOW, type TriageCiFailureCandidate } from "../src/domain";
+import { runTriageCiFailureLoop, triageCiFailureWorkflow } from "../src/loops/triageCiFailure";
 import type { CiFailureRouterModel } from "../src/router/ciFailureRouter";
 import { run } from "../src/workflows/triage-ci-failure";
 import type { CiFailureWorkerMap } from "../src/workers/ciFailureWorkers";
-import {
-  getRuntimeTargetConfig,
-  validateRuntimeTargetSecrets,
-} from "../src/runtimeTargets";
+import { getRuntimeTargetConfig, validateRuntimeTargetSecrets } from "../src/runtimeTargets";
 import {
   buildHumanEscalationCommentBody,
   createGitHubHumanEscalationPublisher,
@@ -143,11 +134,7 @@ describe("runTriageCiFailureLoop", () => {
 
     expect(routedCount).toBe(1);
     expect(attemptedCount).toBe(1);
-    expect(results.map((result) => result.status)).toEqual([
-      "completed",
-      "capped",
-      "capped",
-    ]);
+    expect(results.map((result) => result.status)).toEqual(["completed", "capped", "capped"]);
     expect(results[0]).toMatchObject({
       result: {
         status: "resolved",
@@ -364,15 +351,9 @@ describe("triageCiFailureWorkflow", () => {
       issueNumber: 42,
     });
     expect(comments[0]?.body).toContain("Human escalation required");
-    expect(comments[0]?.body).toContain(
-      "Pull request: https://example.test/acme/widgets/pull/42",
-    );
-    expect(comments[0]?.body).toContain(
-      "Attempted workers: cheap_ci_worker -> deep_ci_worker",
-    );
-    expect(comments[0]?.body).toContain(
-      "Failure summary: Deep worker could not fix safely.",
-    );
+    expect(comments[0]?.body).toContain("Pull request: https://example.test/acme/widgets/pull/42");
+    expect(comments[0]?.body).toContain("Attempted workers: cheap_ci_worker -> deep_ci_worker");
+    expect(comments[0]?.body).toContain("Failure summary: Deep worker could not fix safely.");
     expect(comments[0]?.body).not.toContain("token");
     expect(comments[0]?.body).not.toContain("SECRET");
   });
@@ -414,9 +395,9 @@ describe("triageCiFailureWorkflow", () => {
       },
     } as unknown as CiFailureWorkerMap;
 
-    await expect(
-      triageCiFailureWorkflow(candidate, { routerModel, workers }),
-    ).rejects.toThrow("Missing CI failure worker profile(s): cheap_ci_worker");
+    await expect(triageCiFailureWorkflow(candidate, { routerModel, workers })).rejects.toThrow(
+      "Missing CI failure worker profile(s): cheap_ci_worker",
+    );
     expect(deepAttempted).toBe(false);
   });
 });

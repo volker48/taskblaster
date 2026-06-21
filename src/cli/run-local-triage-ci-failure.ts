@@ -2,10 +2,7 @@ import { readFileSync } from "node:fs";
 import { triageCiFailureWorkflow } from "../loops/triageCiFailure.ts";
 import type { TriageCiFailureCandidate } from "../domain/index.ts";
 import type { CiFailureRouterModel } from "../router/ciFailureRouter.ts";
-import {
-  validateCiFailureWorkerMap,
-  type CiFailureWorker,
-} from "../workers/ciFailureWorkers.ts";
+import { validateCiFailureWorkerMap, type CiFailureWorker } from "../workers/ciFailureWorkers.ts";
 
 const localRouterModel: CiFailureRouterModel = {
   async classify(candidate) {

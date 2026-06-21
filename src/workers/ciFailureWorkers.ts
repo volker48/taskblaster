@@ -86,8 +86,6 @@ function assertWorkerProfile(
   }
 
   if (worker.profile !== expected) {
-    throw new Error(
-      `CI failure worker map key ${expected} points to profile ${worker.profile}`,
-    );
+    throw new Error(`CI failure worker map key ${expected} points to profile ${worker.profile}`);
   }
 }

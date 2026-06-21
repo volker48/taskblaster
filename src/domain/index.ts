@@ -9,9 +9,7 @@ export type {
   Workflow,
   WorkflowName,
 } from "./orchestration.ts";
-export {
-  TRIAGE_CI_FAILURE_WORKFLOW,
-} from "./triageCiFailure.ts";
+export { TRIAGE_CI_FAILURE_WORKFLOW } from "./triageCiFailure.ts";
 export type {
   ChangeRequestRef,
   CiFailureConclusion,

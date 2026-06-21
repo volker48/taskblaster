@@ -3,10 +3,7 @@ import * as v from "valibot";
 import ciFailureRouter from "../agents/ci-failure-router";
 import type { CiFailureRouterModel } from "../router/ciFailureRouter";
 import { triageCiFailureWorkflow } from "../loops/triageCiFailure";
-import {
-  validateCiFailureWorkerMap,
-  type CiFailureWorker,
-} from "../workers/ciFailureWorkers";
+import { validateCiFailureWorkerMap, type CiFailureWorker } from "../workers/ciFailureWorkers";
 import type { TriageCiFailureCandidate } from "../domain";
 
 const RouteDecisionSchema = v.object({
@@ -36,10 +33,7 @@ const WorkerOutcomeSchema = v.union([
   }),
 ]);
 
-export async function run({
-  init,
-  payload,
-}: FlueContext<TriageCiFailureCandidate>) {
+export async function run({ init, payload }: FlueContext<TriageCiFailureCandidate>) {
   const harness = await init(ciFailureRouter);
   const session = await harness.session();
 
@@ -60,10 +54,7 @@ export async function run({
   });
 }
 
-function makeWorker(
-  profile: CiFailureWorker["profile"],
-  session: WorkerSession,
-): CiFailureWorker {
+function makeWorker(profile: CiFailureWorker["profile"], session: WorkerSession): CiFailureWorker {
   return {
     profile,
     async attempt(input) {

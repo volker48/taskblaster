@@ -2,12 +2,11 @@
   "name": "agent-orchestration-framework",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.8.0",
-  "engines": {
-    "node": ">=22.19.0"
-  },
   "scripts": {
     "dev": "flue dev --target node",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
     "loop:local": "node --experimental-transform-types src/cli/run-local-triage-ci-failure.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -19,7 +18,13 @@
   },
   "devDependencies": {
     "@flue/cli": "1.0.0-beta.1",
+    "oxfmt": "0.55.0",
+    "oxlint": "1.70.0",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
-  }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "packageManager": "pnpm@11.8.0"
 }

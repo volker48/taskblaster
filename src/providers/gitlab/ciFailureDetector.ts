@@ -48,9 +48,10 @@ type FailedGitLabPipeline = GitLabPipeline & {
   readonly status: "canceled" | "failed";
 };
 
-export class GitLabCiFailureDetector
-  implements Detector<GitLabCiObservation, TriageCiFailureCandidate>
-{
+export class GitLabCiFailureDetector implements Detector<
+  GitLabCiObservation,
+  TriageCiFailureCandidate
+> {
   detect(observation: GitLabCiObservation): readonly TriageCiFailureCandidate[] {
     return detectGitLabCiFailures(observation);
   }
@@ -59,9 +60,7 @@ export class GitLabCiFailureDetector
 export function detectGitLabCiFailures(
   observation: GitLabCiObservation,
 ): readonly TriageCiFailureCandidate[] {
-  const failures = observation.pipelines
-    .filter(isFailedPipeline)
-    .map(toCiFailureSignal);
+  const failures = observation.pipelines.filter(isFailedPipeline).map(toCiFailureSignal);
 
   if (failures.length === 0) {
     return [];

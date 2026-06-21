@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  TRIAGE_CI_FAILURE_WORKFLOW,
-  type TriageCiFailureCandidate,
-} from "../src/domain";
+import { TRIAGE_CI_FAILURE_WORKFLOW, type TriageCiFailureCandidate } from "../src/domain";
 import { triageCiFailureWorkflow } from "../src/loops/triageCiFailure";
 import type { CiFailureRouterModel } from "../src/router/ciFailureRouter";
 import {

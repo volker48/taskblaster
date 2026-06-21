@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getRuntimeTargetConfig,
-  validateRuntimeTargetSecrets,
-} from "../src/runtimeTargets";
+import { getRuntimeTargetConfig, validateRuntimeTargetSecrets } from "../src/runtimeTargets";
 
 describe("Runtime Target configuration", () => {
   it("names local and Node targets with explicit command paths", () => {
