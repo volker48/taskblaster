@@ -14,6 +14,12 @@ import {
   getRuntimeTargetConfig,
   validateRuntimeTargetSecrets,
 } from "../src/runtimeTargets";
+import {
+  buildHumanEscalationCommentBody,
+  createGitHubHumanEscalationPublisher,
+  type GitHubIssueCommentRequest,
+  type StackedPullRequestRequest,
+} from "../src/providers/github";
 
 const candidate: TriageCiFailureCandidate = {
   workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
@@ -267,6 +273,125 @@ describe("runTriageCiFailureLoop", () => {
 });
 
 describe("triageCiFailureWorkflow", () => {
+  it("opens extensive deep worker Repair Mutations as stacked pull requests", async () => {
+    const stackedRequests: StackedPullRequestRequest[] = [];
+    const result = await triageCiFailureWorkflow(candidate, {
+      routerModel: {
+        async classify() {
+          return {
+            difficulty: "deep",
+            confidence: 0.95,
+            rationale: "Semantic test failure.",
+          };
+        },
+      },
+      workers: {
+        cheap_ci_worker: {
+          profile: "cheap_ci_worker",
+          async attempt() {
+            throw new Error("Cheap worker should not run.");
+          },
+        },
+        deep_ci_worker: {
+          profile: "deep_ci_worker",
+          async attempt() {
+            return {
+              status: "resolved",
+              summary: "Correctness fix prepared.",
+              mutation: {
+                changedFiles: ["src/widgets.ts"],
+                commitSha: "def456",
+                pushed: true,
+                delivery: "stacked_pr",
+                risk: "risky",
+                title: "Fix widget race condition",
+              },
+            };
+          },
+        },
+      },
+      stackedPullRequests: {
+        async createStackedPullRequest(request) {
+          stackedRequests.push(request);
+
+          return {
+            number: 77,
+            url: "https://example.test/acme/widgets/pull/77",
+            headRef: "taskblaster/repair-42",
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "resolved",
+      worker: "deep_ci_worker",
+      stackedPullRequest: { number: 77 },
+    });
+    expect(stackedRequests).toHaveLength(1);
+    expect(stackedRequests[0]).toMatchObject({
+      baseRef: "fix-lint",
+      headSha: "abc123",
+      originalPullRequest: { number: 42 },
+      title: "Fix widget race condition",
+    });
+    expect(stackedRequests[0]?.body).toContain(candidate.input.changeRequest.url);
+    expect(stackedRequests[0]?.body).toContain(candidate.detectedAt);
+  });
+
+  it("publishes a human escalation output when deep automation is exhausted", async () => {
+    const comments: GitHubIssueCommentRequest[] = [];
+    const publisher = createGitHubHumanEscalationPublisher({
+      async createIssueComment(request) {
+        comments.push(request);
+      },
+    });
+    const result = await triageCiFailureWorkflow(candidate, {
+      routerModel: cheapRouter(),
+      workers: unresolvedWorkers(),
+      humanEscalationPublisher: publisher,
+    });
+
+    expect(result).toMatchObject({
+      status: "escalated",
+      worker: "deep_ci_worker",
+      attemptedWorkers: ["cheap_ci_worker", "deep_ci_worker"],
+      escalation: { target: "human" },
+    });
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      repository: { owner: "acme", name: "widgets" },
+      issueNumber: 42,
+    });
+    expect(comments[0]?.body).toContain("Human escalation required");
+    expect(comments[0]?.body).toContain(
+      "Pull request: https://example.test/acme/widgets/pull/42",
+    );
+    expect(comments[0]?.body).toContain(
+      "Attempted workers: cheap_ci_worker -> deep_ci_worker",
+    );
+    expect(comments[0]?.body).toContain(
+      "Failure summary: Deep worker could not fix safely.",
+    );
+    expect(comments[0]?.body).not.toContain("token");
+    expect(comments[0]?.body).not.toContain("SECRET");
+  });
+
+  it("builds provider-visible human escalation comments with reviewer context", () => {
+    const body = buildHumanEscalationCommentBody({
+      candidate,
+      failureSummary: "Deep worker could not fix safely.",
+      attemptedWorkers: ["cheap_ci_worker", "deep_ci_worker"],
+      recommendedAction: "Inspect the failing lint check and update the branch manually.",
+    });
+
+    expect(body).toContain("Repository: acme/widgets");
+    expect(body).toContain("Head SHA: abc123");
+    expect(body).toContain("- lint (failure)");
+    expect(body).toContain("Inspect the failing lint check");
+    expect(body).not.toContain(process.env.GITHUB_TOKEN ?? "unavailable-token");
+  });
+
   it("fails before invocation when the routed worker profile is not registered", async () => {
     const routerModel: CiFailureRouterModel = {
       async classify() {
@@ -341,6 +466,35 @@ describe("triage CI failure workflow entrypoint", () => {
     });
   });
 });
+
+function cheapRouter(): CiFailureRouterModel {
+  return {
+    async classify() {
+      return {
+        difficulty: "cheap",
+        confidence: 0.95,
+        rationale: "Formatting failure.",
+      };
+    },
+  };
+}
+
+function unresolvedWorkers(): CiFailureWorkerMap {
+  return {
+    cheap_ci_worker: {
+      profile: "cheap_ci_worker",
+      async attempt() {
+        return { status: "unresolved", summary: "Cheap worker could not fix." };
+      },
+    },
+    deep_ci_worker: {
+      profile: "deep_ci_worker",
+      async attempt() {
+        return { status: "unresolved", summary: "Deep worker could not fix safely." };
+      },
+    },
+  };
+}
 
 describe("Runtime Target configuration", () => {
   it("names local and Node targets with explicit command paths", () => {

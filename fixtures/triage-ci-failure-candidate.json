@@ -1,0 +1,27 @@
+{
+  "workflowName": "triage-ci-failure",
+  "detectedAt": "2026-06-20T14:00:00.000Z",
+  "input": {
+    "repository": {
+      "provider": "github",
+      "owner": "acme",
+      "name": "widgets"
+    },
+    "changeRequest": {
+      "number": 42,
+      "title": "Fix lint",
+      "url": "https://example.test/acme/widgets/pull/42",
+      "headSha": "abc123",
+      "baseRef": "main",
+      "headRef": "fix-lint"
+    },
+    "failures": [
+      {
+        "provider": "github",
+        "externalId": "check-1",
+        "name": "lint",
+        "conclusion": "failure"
+      }
+    ]
+  }
+}

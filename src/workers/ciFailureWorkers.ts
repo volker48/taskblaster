@@ -2,8 +2,8 @@ import type {
   CiFailureRouteRequest,
   CiFailureRouteDecision,
   WorkerProfile,
-} from "../router/ciFailureRouter";
-import type { Escalation, Worker } from "../domain";
+} from "../router/ciFailureRouter.ts";
+import type { Escalation, Worker } from "../domain/index.ts";
 
 export type WorkerOutcome =
   | { status: "resolved"; summary: string; mutation?: RepairMutationResult }

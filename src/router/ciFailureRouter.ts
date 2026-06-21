@@ -3,7 +3,7 @@ import type {
   RouteDecision,
   Router,
   TriageCiFailureCandidate,
-} from "../domain";
+} from "../domain/index.ts";
 
 export type WorkerProfile = "cheap_ci_worker" | "deep_ci_worker";
 

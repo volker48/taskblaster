@@ -19,6 +19,16 @@ const WorkerOutcomeSchema = v.union([
   v.object({
     status: v.literal("resolved"),
     summary: v.string(),
+    mutation: v.optional(
+      v.object({
+        changedFiles: v.array(v.string()),
+        commitSha: v.string(),
+        pushed: v.boolean(),
+        delivery: v.optional(v.picklist(["direct", "stacked_pr"])),
+        risk: v.optional(v.picklist(["low", "extensive", "risky"])),
+        title: v.optional(v.string()),
+      }),
+    ),
   }),
   v.object({
     status: v.literal("unresolved"),
@@ -80,6 +90,7 @@ function buildWorkerPrompt(input: Parameters<CiFailureWorker["attempt"]>[0]): st
   return [
     `You are ${input.decision.workerId}. Attempt the selected CI remediation.`,
     "Fix directly for small safe changes. Use a stacked change for extensive fixes.",
+    "For extensive or risky repairs, return a resolved mutation with delivery stacked_pr.",
     "Return unresolved when the work should escalate instead of guessing.",
     JSON.stringify(input.request, null, 2),
   ].join("\n\n");

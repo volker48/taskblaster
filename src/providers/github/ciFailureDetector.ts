@@ -6,7 +6,7 @@ import {
   type Detector,
   type RepositoryRef,
   type TriageCiFailureCandidate,
-} from "../../domain";
+} from "../../domain/index.ts";
 
 export type GitHubCheckConclusion =
   | "action_required"

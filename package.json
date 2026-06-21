@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "flue dev --target node",
+    "loop:local": "node --experimental-transform-types src/cli/run-local-triage-ci-failure.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "flue:run:triage-ci-failure": "flue run triage-ci-failure --target node"

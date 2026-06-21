@@ -4,24 +4,24 @@ import {
   type CiFailureRouteRequest,
   type CiFailureRouterModel,
   type WorkerProfile,
-} from "../router/ciFailureRouter";
+} from "../router/ciFailureRouter.ts";
 import {
   nextEscalation,
   validateCiFailureWorkerMap,
   type CiFailureWorkerMap,
   type WorkerOutcome,
-} from "../workers/ciFailureWorkers";
+} from "../workers/ciFailureWorkers.ts";
 import {
   buildStackedPullRequestRequest,
   type StackedPullRequestCreator,
   type StackedPullRequestResult,
-} from "../providers/github";
+} from "../providers/github/index.ts";
 import {
   TRIAGE_CI_FAILURE_WORKFLOW,
   type Escalation,
   type TriageCiFailureCandidate,
   type Workflow,
-} from "../domain";
+} from "../domain/index.ts";
 
 export type TriageCiFailureResult =
   | { status: "no_candidate"; reason: string }
@@ -43,6 +43,7 @@ export type TriageCiFailureDependencies = {
   routerModel: CiFailureRouterModel;
   workers: CiFailureWorkerMap;
   stackedPullRequests?: StackedPullRequestCreator;
+  humanEscalationPublisher?: HumanEscalationPublisher;
 };
 
 export type HumanEscalationOutput = {
@@ -52,11 +53,16 @@ export type HumanEscalationOutput = {
   readonly recommendedAction: string;
 };
 
+export interface HumanEscalationPublisher {
+  publish(output: HumanEscalationOutput): Promise<void>;
+}
+
 export type TriageCiFailureLoopDependencies = {
   routerModel: CiFailureRouterModel;
   workers: Parameters<typeof validateCiFailureWorkerMap>[0];
   mutationCap?: MutationCap;
   stackedPullRequests?: StackedPullRequestCreator;
+  humanEscalationPublisher?: HumanEscalationPublisher;
 };
 
 export type TriageCiFailureLoopResult =
@@ -138,6 +144,7 @@ export async function runTriageCiFailureLoop(
   const workflow = new TriageCiFailureWorkflow({
     routerModel: dependencies.routerModel,
     workers,
+    humanEscalationPublisher: dependencies.humanEscalationPublisher,
   });
   const runnableCandidates = mutationCap
     ? candidates.slice(0, mutationCap.available)
@@ -175,12 +182,20 @@ export async function triageCiFailureWorkflow(
   }
 
   const decision = await routeCiFailure(dependenciesWithValidatedWorkers.routerModel, candidate);
-  return attemptWorkerWithEscalation(
+  const result = await attemptWorkerWithEscalation(
     candidate,
     decision,
     dependenciesWithValidatedWorkers.workers,
     dependenciesWithValidatedWorkers.stackedPullRequests,
   );
+
+  if (result.status === "escalated" && result.escalation.target === "human") {
+    await dependencies.humanEscalationPublisher?.publish(
+      buildHumanEscalationOutput(candidate, result),
+    );
+  }
+
+  return result;
 }
 
 export function precheckTriageCiFailure(
@@ -284,7 +299,7 @@ async function resolveWorkerAttempt(
 }
 
 function needsStackedPullRequest(
-  worker: WorkerProfile;
+  worker: WorkerProfile,
   mutation: Extract<WorkerOutcome, { status: "resolved" }>["mutation"],
 ): boolean {
   if (worker !== "deep_ci_worker" || !mutation) {
@@ -302,6 +317,19 @@ function configurationFailureReason(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
   return `CI failure loop is misconfigured: ${message}`;
+}
+
+function buildHumanEscalationOutput(
+  candidate: TriageCiFailureCandidate,
+  result: Extract<TriageCiFailureResult, { status: "escalated" }>,
+): HumanEscalationOutput {
+  return {
+    candidate,
+    attemptedWorkers: result.attemptedWorkers,
+    failureSummary: result.outcome.summary,
+    recommendedAction:
+      "Review the failed checks and automation summary, then apply a manual fix or close the candidate.",
+  };
 }
 
 function normalizeMutationCap(cap: MutationCap | undefined): MutationCapSnapshot | null {

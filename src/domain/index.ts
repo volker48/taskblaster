@@ -8,10 +8,10 @@ export type {
   Worker,
   Workflow,
   WorkflowName,
-} from "./orchestration";
+} from "./orchestration.ts";
 export {
   TRIAGE_CI_FAILURE_WORKFLOW,
-} from "./triageCiFailure";
+} from "./triageCiFailure.ts";
 export type {
   ChangeRequestRef,
   CiFailureConclusion,
@@ -19,4 +19,4 @@ export type {
   RepositoryRef,
   TriageCiFailureCandidate,
   TriageCiFailureInput,
-} from "./triageCiFailure";
+} from "./triageCiFailure.ts";

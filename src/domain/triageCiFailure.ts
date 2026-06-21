@@ -1,4 +1,4 @@
-import type { WorkflowName } from "./orchestration";
+import type { WorkflowName } from "./orchestration.ts";
 
 export const TRIAGE_CI_FAILURE_WORKFLOW = "triage-ci-failure" satisfies WorkflowName;
 
