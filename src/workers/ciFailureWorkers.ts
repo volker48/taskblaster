@@ -6,8 +6,28 @@ import type {
 import type { Escalation, Worker } from "../domain";
 
 export type WorkerOutcome =
-  | { status: "resolved"; summary: string }
+  | { status: "resolved"; summary: string; mutation?: RepairMutationResult }
   | { status: "unresolved"; summary: string };
+
+export type RepairMutationKind = "format" | "lint" | "correctness";
+export type RepairMutationDelivery = "direct" | "stacked_pr";
+export type RepairMutationRisk = "low" | "extensive" | "risky";
+
+export type RepairMutationPlan = {
+  readonly kind: RepairMutationKind;
+  readonly failureNames: readonly string[];
+  readonly delivery?: RepairMutationDelivery;
+  readonly maxChangedFiles?: number;
+};
+
+export type RepairMutationResult = {
+  readonly changedFiles: readonly string[];
+  readonly commitSha: string;
+  readonly pushed: boolean;
+  readonly delivery?: RepairMutationDelivery;
+  readonly risk?: RepairMutationRisk;
+  readonly title?: string;
+};
 
 export type CiFailureWorkerInput = {
   request: CiFailureRouteRequest;
