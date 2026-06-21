@@ -1,0 +1,34 @@
+{
+  "repository": {
+    "owner": "acme",
+    "name": "widgets"
+  },
+  "mergeRequest": {
+    "iid": 42,
+    "title": "Fix lint",
+    "web_url": "https://gitlab.example.test/acme/widgets/-/merge_requests/42",
+    "sha": "abc123",
+    "target_branch": "main",
+    "source_branch": "fix-lint"
+  },
+  "observedAt": "2026-06-20T14:00:00.000Z",
+  "pipelines": [
+    {
+      "id": 1001,
+      "name": "lint",
+      "status": "failed",
+      "web_url": "https://gitlab.example.test/acme/widgets/-/pipelines/1001"
+    },
+    {
+      "id": 1002,
+      "name": "build",
+      "status": "success",
+      "web_url": "https://gitlab.example.test/acme/widgets/-/pipelines/1002"
+    },
+    {
+      "id": 1003,
+      "name": "test",
+      "status": "canceled"
+    }
+  ]
+}
