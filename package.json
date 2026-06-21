@@ -4,16 +4,20 @@
   "type": "module",
   "scripts": {
     "dev": "flue dev --target node",
+    "dev:cloudflare": "flue dev --target cloudflare",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
     "loop:local": "node --experimental-transform-types src/cli/run-local-triage-ci-failure.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "flue:build:cloudflare": "flue build --target cloudflare",
+    "flue:deploy:cloudflare:dry-run": "wrangler deploy --dry-run --config dist/taskblaster/wrangler.json",
     "flue:run:triage-ci-failure": "flue run triage-ci-failure --target node"
   },
   "dependencies": {
     "@flue/runtime": "1.0.0-beta.2",
+    "agents": "0.16.2",
     "valibot": "1.4.1"
   },
   "devDependencies": {

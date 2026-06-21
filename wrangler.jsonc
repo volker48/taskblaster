@@ -1,0 +1,19 @@
+{
+  "$schema": "https://workers.cloudflare.com/schema/wrangler.json",
+  "name": "taskblaster",
+  "compatibility_date": "2026-06-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["*/15 * * * *"],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "FlueRegistry",
+        "FlueCiFailureRouterAgent",
+        "FlueTriageCiFailureWorkflow",
+      ],
+    },
+  ],
+}
