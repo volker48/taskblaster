@@ -1,6 +1,9 @@
 export {
+  buildAcceptedCandidateCommentBody,
   buildHumanEscalationCommentBody,
+  buildResolvedOutcomeCommentBody,
   createGitHubHumanEscalationPublisher,
+  createGitHubProviderActivityPublisher,
 } from "./humanEscalation.ts";
 export type { GitHubIssueCommentCreator, GitHubIssueCommentRequest } from "./humanEscalation.ts";
 export { detectGitHubCiFailures, GitHubCiFailureDetector } from "./ciFailureDetector.ts";

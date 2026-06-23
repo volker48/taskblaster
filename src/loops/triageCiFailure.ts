@@ -22,13 +22,14 @@ import {
   type TriageCiFailureCandidate,
   type Workflow,
 } from "../domain/index.ts";
+import { DEFAULT_MUTATION_CAP } from "../runtimeTargets.ts";
 
 export type TriageCiFailureResult =
   | { status: "no_candidate"; reason: string }
   | {
       status: "resolved";
       worker: WorkerProfile;
-      outcome: WorkerOutcome;
+      outcome: Extract<WorkerOutcome, { status: "resolved" }>;
       stackedPullRequest?: StackedPullRequestResult;
     }
   | {
@@ -57,12 +58,23 @@ export interface HumanEscalationPublisher {
   publish(output: HumanEscalationOutput): Promise<void>;
 }
 
+export type ProviderResolvedOutput = {
+  readonly candidate: TriageCiFailureCandidate;
+  readonly result: Extract<TriageCiFailureResult, { status: "resolved" }>;
+};
+
+export interface ProviderActivityPublisher {
+  publishAccepted(candidate: TriageCiFailureCandidate): Promise<void>;
+  publishResolved(output: ProviderResolvedOutput): Promise<void>;
+}
+
 export type TriageCiFailureLoopDependencies = {
   routerModel: CiFailureRouterModel;
   workers: Parameters<typeof validateCiFailureWorkerMap>[0];
   mutationCap?: MutationCap;
   stackedPullRequests?: StackedPullRequestCreator;
   humanEscalationPublisher?: HumanEscalationPublisher;
+  providerActivityPublisher?: ProviderActivityPublisher;
 };
 
 export type TriageCiFailureLoopResult =
@@ -145,6 +157,7 @@ export async function runTriageCiFailureLoop(
   const workflow = new TriageCiFailureWorkflow({
     routerModel: dependencies.routerModel,
     workers,
+    stackedPullRequests: dependencies.stackedPullRequests,
     humanEscalationPublisher: dependencies.humanEscalationPublisher,
   });
   const runnableCandidates = mutationCap ? candidates.slice(0, mutationCap.available) : candidates;
@@ -155,15 +168,33 @@ export async function runTriageCiFailureLoop(
     : [];
 
   const completedResults: readonly TriageCiFailureLoopResult[] = await Promise.all(
-    runnableCandidates.map(async (candidate) => ({
-      status: "completed" as const,
-      workflowName: TRIAGE_CI_FAILURE_WORKFLOW as typeof TRIAGE_CI_FAILURE_WORKFLOW,
-      candidate,
-      result: await workflow.run(candidate),
-    })),
+    runnableCandidates.map((candidate) =>
+      runAcceptedCandidate(candidate, workflow, dependencies.providerActivityPublisher),
+    ),
   );
 
   return [...completedResults, ...cappedResults];
+}
+
+async function runAcceptedCandidate(
+  candidate: TriageCiFailureCandidate,
+  workflow: TriageCiFailureWorkflow,
+  providerActivityPublisher: ProviderActivityPublisher | undefined,
+): Promise<TriageCiFailureLoopResult> {
+  await providerActivityPublisher?.publishAccepted(candidate);
+
+  const result = await workflow.run(candidate);
+
+  if (result.status === "resolved") {
+    await providerActivityPublisher?.publishResolved({ candidate, result });
+  }
+
+  return {
+    status: "completed",
+    workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
+    candidate,
+    result,
+  };
 }
 
 export async function triageCiFailureWorkflow(
@@ -331,12 +362,9 @@ function buildHumanEscalationOutput(
 }
 
 function normalizeMutationCap(cap: MutationCap | undefined): MutationCapSnapshot | null {
-  if (!cap) {
-    return null;
-  }
-
-  const limit = nonNegativeInteger(cap.limit, "Mutation Cap limit");
-  const active = nonNegativeInteger(cap.active, "active Repair Mutations");
+  const effectiveCap = cap ?? { limit: DEFAULT_MUTATION_CAP, active: 0 };
+  const limit = nonNegativeInteger(effectiveCap.limit, "Mutation Cap limit");
+  const active = nonNegativeInteger(effectiveCap.active, "active Repair Mutations");
 
   return {
     limit,

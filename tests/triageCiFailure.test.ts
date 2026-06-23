@@ -4,10 +4,17 @@ import { runTriageCiFailureLoop, triageCiFailureWorkflow } from "../src/loops/tr
 import type { CiFailureRouterModel } from "../src/router/ciFailureRouter";
 import { run } from "../src/workflows/triage-ci-failure";
 import type { CiFailureWorkerMap } from "../src/workers/ciFailureWorkers";
-import { getRuntimeTargetConfig, validateRuntimeTargetSecrets } from "../src/runtimeTargets";
 import {
+  DEFAULT_MUTATION_CAP,
+  getRuntimeTargetConfig,
+  validateRuntimeTargetSecrets,
+} from "../src/runtimeTargets";
+import {
+  buildAcceptedCandidateCommentBody,
   buildHumanEscalationCommentBody,
+  buildResolvedOutcomeCommentBody,
   createGitHubHumanEscalationPublisher,
+  createGitHubProviderActivityPublisher,
   type GitHubIssueCommentRequest,
   type StackedPullRequestRequest,
 } from "../src/providers/github";
@@ -146,6 +153,145 @@ describe("runTriageCiFailureLoop", () => {
       workflowName: TRIAGE_CI_FAILURE_WORKFLOW,
       reason: "Mutation Cap exhausted; candidate deferred before Repair Mutation.",
       mutationCap: { limit: 2, active: 1, available: 1 },
+    });
+  });
+
+  it("uses a default Mutation Cap of five active Repair Mutations", async () => {
+    let attemptedCount = 0;
+    const workers = {
+      cheap_ci_worker: {
+        profile: "cheap_ci_worker",
+        async attempt() {
+          attemptedCount += 1;
+
+          return { status: "resolved" as const, summary: "Fixed formatting." };
+        },
+      },
+      deep_ci_worker: {
+        profile: "deep_ci_worker",
+        async attempt() {
+          throw new Error("Deep worker should not run.");
+        },
+      },
+    } satisfies CiFailureWorkerMap;
+
+    const results = await runTriageCiFailureLoop(
+      [candidate, candidate, candidate, candidate, candidate, candidate],
+      {
+        routerModel: cheapRouter(),
+        workers,
+      },
+    );
+
+    expect(attemptedCount).toBe(DEFAULT_MUTATION_CAP);
+    expect(results.map((result) => result.status)).toEqual([
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "capped",
+    ]);
+  });
+
+  it("publishes accepted and resolved provider activity around remediation", async () => {
+    const events: string[] = [];
+    const result = await runTriageCiFailureLoop([candidate], {
+      routerModel: cheapRouter(),
+      workers: {
+        cheap_ci_worker: {
+          profile: "cheap_ci_worker",
+          async attempt() {
+            events.push("attempt");
+
+            return { status: "resolved", summary: "Fixed formatting." };
+          },
+        },
+        deep_ci_worker: {
+          profile: "deep_ci_worker",
+          async attempt() {
+            throw new Error("Deep worker should not run.");
+          },
+        },
+      },
+      providerActivityPublisher: {
+        async publishAccepted() {
+          events.push("accepted");
+        },
+        async publishResolved() {
+          events.push("resolved");
+        },
+      },
+    });
+
+    expect(result).toMatchObject([{ status: "completed" }]);
+    expect(events).toEqual(["accepted", "attempt", "resolved"]);
+  });
+
+  it("passes stacked pull request creation into workflow runs", async () => {
+    const stackedRequests: StackedPullRequestRequest[] = [];
+    const workers = {
+      cheap_ci_worker: {
+        profile: "cheap_ci_worker",
+        async attempt() {
+          throw new Error("Cheap worker should not run.");
+        },
+      },
+      deep_ci_worker: {
+        profile: "deep_ci_worker",
+        async attempt() {
+          return {
+            status: "resolved" as const,
+            summary: "Correctness fix prepared.",
+            mutation: {
+              changedFiles: ["src/widgets.ts"],
+              commitSha: "def456",
+              pushed: true,
+              delivery: "stacked_pr" as const,
+              risk: "risky" as const,
+            },
+          };
+        },
+      },
+    } satisfies CiFailureWorkerMap;
+
+    const results = await runTriageCiFailureLoop([candidate], {
+      routerModel: {
+        async classify() {
+          return {
+            difficulty: "deep",
+            confidence: 0.95,
+            rationale: "Semantic test failure.",
+          };
+        },
+      },
+      workers,
+      stackedPullRequests: {
+        async createStackedPullRequest(request) {
+          stackedRequests.push(request);
+
+          return {
+            number: 77,
+            url: "https://example.test/acme/widgets/pull/77",
+            headRef: "taskblaster/repair-42",
+          };
+        },
+      },
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      status: "completed",
+      result: {
+        status: "resolved",
+        worker: "deep_ci_worker",
+        stackedPullRequest: { number: 77 },
+      },
+    });
+    expect(stackedRequests).toHaveLength(1);
+    expect(stackedRequests[0]).toMatchObject({
+      baseRef: "fix-lint",
+      originalPullRequest: { number: 42 },
     });
   });
 
@@ -358,6 +504,44 @@ describe("triageCiFailureWorkflow", () => {
     expect(comments[0]?.body).not.toContain("SECRET");
   });
 
+  it("publishes provider-visible accepted and resolved activity comments", async () => {
+    const comments: GitHubIssueCommentRequest[] = [];
+    const publisher = createGitHubProviderActivityPublisher({
+      async createIssueComment(request) {
+        comments.push(request);
+      },
+    });
+
+    await publisher.publishAccepted(candidate);
+    await publisher.publishResolved({
+      candidate,
+      result: {
+        status: "resolved",
+        worker: "cheap_ci_worker",
+        outcome: {
+          status: "resolved",
+          summary: "Fixed formatting.",
+          mutation: {
+            changedFiles: ["README.md"],
+            commitSha: "def456",
+            pushed: true,
+          },
+        },
+      },
+    });
+
+    expect(comments).toHaveLength(2);
+    expect(comments[0]).toMatchObject({
+      repository: { owner: "acme", name: "widgets" },
+      issueNumber: 42,
+    });
+    expect(comments[0]?.body).toContain("Accepted CI failure candidate");
+    expect(comments[0]?.body).toContain("Workflow: triage-ci-failure");
+    expect(comments[1]?.body).toContain("Automated CI remediation resolved");
+    expect(comments[1]?.body).toContain("Worker: cheap_ci_worker");
+    expect(comments[1]?.body).toContain("Commit: def456");
+  });
+
   it("builds provider-visible human escalation comments with reviewer context", () => {
     const body = buildHumanEscalationCommentBody({
       candidate,
@@ -371,6 +555,37 @@ describe("triageCiFailureWorkflow", () => {
     expect(body).toContain("- lint (failure)");
     expect(body).toContain("Inspect the failing lint check");
     expect(body).not.toContain(process.env.GITHUB_TOKEN ?? "unavailable-token");
+  });
+
+  it("builds provider-visible activity comments with candidate and mutation context", () => {
+    const acceptedBody = buildAcceptedCandidateCommentBody(candidate);
+    const resolvedBody = buildResolvedOutcomeCommentBody({
+      candidate,
+      result: {
+        status: "resolved",
+        worker: "deep_ci_worker",
+        outcome: {
+          status: "resolved",
+          summary: "Prepared stacked fix.",
+          mutation: {
+            changedFiles: ["src/widgets.ts"],
+            commitSha: "def456",
+            pushed: true,
+          },
+        },
+        stackedPullRequest: {
+          number: 77,
+          url: "https://example.test/acme/widgets/pull/77",
+          headRef: "taskblaster/repair-42",
+        },
+      },
+    });
+
+    expect(acceptedBody).toContain("Pull request: https://example.test/acme/widgets/pull/42");
+    expect(acceptedBody).toContain("- lint (failure)");
+    expect(resolvedBody).toContain("Worker: deep_ci_worker");
+    expect(resolvedBody).toContain("Stacked pull request");
+    expect(resolvedBody).not.toContain("OPENAI_API_KEY");
   });
 
   it("fails before invocation when the routed worker profile is not registered", async () => {
@@ -478,29 +693,47 @@ function unresolvedWorkers(): CiFailureWorkerMap {
 }
 
 describe("Runtime Target configuration", () => {
-  it("names local and Node targets with explicit command paths", () => {
+  it("names local, Node, and Cloudflare targets with explicit command paths", () => {
     expect(getRuntimeTargetConfig("local")).toMatchObject({
       name: "local",
       command: "pnpm loop:local -- <payload.json>",
+      scheduler: "manual",
       mutatesProvider: false,
+      defaultMutationCap: DEFAULT_MUTATION_CAP,
       requiredSecrets: [],
     });
     expect(getRuntimeTargetConfig("node")).toMatchObject({
       name: "node",
       command: "pnpm flue:run:triage-ci-failure",
+      scheduler: "daemon",
       mutatesProvider: false,
+      defaultMutationCap: DEFAULT_MUTATION_CAP,
       requiredSecrets: ["GITHUB_TOKEN", "FLUE_API_KEY", "OPENAI_API_KEY"],
+    });
+    expect(getRuntimeTargetConfig("cloudflare")).toMatchObject({
+      name: "cloudflare",
+      command: "pnpm flue:build:cloudflare",
+      scheduler: "cloudflare-cron",
+      mutatesProvider: true,
+      defaultMutationCap: DEFAULT_MUTATION_CAP,
+      requiredSecrets: [
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID",
+      ],
     });
   });
 
   it("reports unset or blank Runtime Target secrets", () => {
-    const config = getRuntimeTargetConfig("node");
+    const config = getRuntimeTargetConfig("cloudflare");
 
     expect(
       validateRuntimeTargetSecrets(config, {
         GITHUB_TOKEN: "github-token",
-        FLUE_API_KEY: "",
+        OPENAI_API_KEY: "",
+        CLOUDFLARE_API_TOKEN: "cloudflare-token",
       }),
-    ).toEqual(["FLUE_API_KEY", "OPENAI_API_KEY"]);
+    ).toEqual(["OPENAI_API_KEY", "CLOUDFLARE_ACCOUNT_ID"]);
   });
 });

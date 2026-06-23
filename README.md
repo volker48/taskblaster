@@ -33,6 +33,9 @@ Taskblaster names Runtime Targets separately from Loop vocabulary:
 - `node`: runs `pnpm flue:run:triage-ci-failure` through the Flue Node target.
   This is the model-backed runtime path used for workflow discovery and Flue
   execution.
+- `cloudflare`: runs `pnpm flue:build:cloudflare` to build a Cloudflare Workers
+  artifact with Flue Durable Object state, Wrangler migrations, and a Cron
+  Trigger. Use `pnpm dev:cloudflare` for local Worker development.
 
 The Node Runtime Target expects secrets from environment variables:
 
@@ -40,6 +43,15 @@ The Node Runtime Target expects secrets from environment variables:
   write paths.
 - `FLUE_API_KEY`: Flue runtime access.
 - `OPENAI_API_KEY`: model provider access for routing and worker sessions.
+
+The Cloudflare Runtime Target expects provider and model credentials from
+Runtime Target secret handling:
+
+- `GITHUB_TOKEN`: provider access for comments, branch mutation, and pull
+  request operations.
+- `OPENAI_API_KEY`: model provider access for routing and worker sessions.
+- `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`: Wrangler deployment
+  credentials.
 
 Do not commit these values. Set them in the operator shell, local secret store,
 or deployment secret manager.
@@ -55,6 +67,26 @@ Run the Flue Node target:
 ```bash
 GITHUB_TOKEN=... FLUE_API_KEY=... OPENAI_API_KEY=... pnpm flue:run:triage-ci-failure
 ```
+
+Build and validate the Cloudflare target:
+
+```bash
+OPENAI_API_KEY=... GITHUB_TOKEN=... pnpm flue:build:cloudflare
+pnpm flue:deploy:cloudflare:dry-run
+```
+
+The source-root `wrangler.jsonc` declares the Cloudflare Cron Trigger and the
+Flue Durable Object SQLite migrations for `FlueRegistry`,
+`FlueCiFailureRouterAgent`, and `FlueTriageCiFailureWorkflow`. Deploy the
+generated config from `dist/taskblaster/wrangler.json` after the build, not the
+source-root config.
+
+Cloudflare Cron admission reads `TASKBLASTER_ACCEPTED_CANDIDATES_JSON` as either
+one accepted candidate or an array of accepted candidates, then dispatches one
+`triage-ci-failure` Workflow request per candidate through the generated
+`FLUE_TRIAGE_CI_FAILURE_WORKFLOW` Durable Object binding. Deterministic provider
+discovery can batch observations before this boundary; model-backed remediation
+stays isolated per Accepted Candidate.
 
 ## CI/MR Loop Operator Guide
 
@@ -78,9 +110,14 @@ failure:
   requests when a stacked pull request creator is configured.
 - The current local Runtime Target is a dry run and never calls GitHub or mutates
   provider state.
-- The current Loop runner supports Mutation Caps for limiting concurrent Repair
-  Mutations, but it does not yet wire a stacked pull request creator through the
-  batch Loop path. Treat stacked pull request creation as dependency-gated work.
+- The Loop runner enforces a default Mutation Cap of 5. Runtime-specific
+  configuration can lower or raise the cap for active Repair Mutations.
+- Cloudflare workflow admission stores run history in Flue Durable Object state.
+  Provider comments remain the human-readable state of record for accepted work,
+  mutation outcomes, and Escalation decisions.
+- Diagnosis can use Flue's lightweight virtual sandbox when no branch mutation is
+  required. Repair Mutation on Cloudflare should use Cloudflare Sandbox before
+  writing provider branches.
 
 Escalation is finite. An unresolved cheap Worker result escalates to
 `deep_ci_worker`. An unresolved deep Worker result escalates to a human. When a
