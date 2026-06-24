@@ -1,56 +1,37 @@
-import type {
-  Difficulty,
-  RouteDecision,
-  Router,
-  TriageCiFailureCandidate,
-} from "../domain/index.ts";
+import type { Difficulty, TriageCiFailureCandidate } from "../domain/index.ts";
 
 export type WorkerProfile = "cheap_ci_worker" | "deep_ci_worker";
 
-export type CiFailureRouterModelOutput = {
+export type CiFailureClassification = {
   difficulty: Difficulty;
   confidence: number;
   rationale: string;
 };
 
-export type CiFailureRouteDecision = RouteDecision<WorkerProfile> & CiFailureRouterModelOutput;
+export type CiFailureRouteDecision = CiFailureClassification & {
+  workerId: WorkerProfile;
+};
 
 export type CiFailureRouteRequest = TriageCiFailureCandidate;
 
 export type CiFailureRouterModel = {
-  classify(request: CiFailureRouteRequest): Promise<CiFailureRouterModelOutput>;
+  classify(request: CiFailureRouteRequest): Promise<CiFailureClassification>;
 };
-
-export class CiFailureRouter implements Router<CiFailureRouteRequest, WorkerProfile> {
-  constructor(private readonly model: CiFailureRouterModel) {}
-
-  route(request: CiFailureRouteRequest): Promise<CiFailureRouteDecision> {
-    return routeCiFailure(this.model, request);
-  }
-}
 
 export async function routeCiFailure(
   model: CiFailureRouterModel,
   request: CiFailureRouteRequest,
-): Promise<CiFailureRouteDecision> {
-  const decision = await model.classify(request);
-  return normalizeDecision(decision);
+): Promise<CiFailureClassification> {
+  const classification = await model.classify(request);
+  return normalizeClassification(classification);
 }
 
-function normalizeDecision(decision: CiFailureRouterModelOutput): CiFailureRouteDecision {
-  const difficulty = decision.difficulty;
-  const workerId = chooseWorker(difficulty);
-
+function normalizeClassification(classification: CiFailureClassification): CiFailureClassification {
   return {
-    workerId,
-    difficulty,
-    confidence: clampConfidence(decision.confidence),
-    rationale: decision.rationale.trim(),
+    difficulty: classification.difficulty,
+    confidence: clampConfidence(classification.confidence),
+    rationale: classification.rationale.trim(),
   };
-}
-
-function chooseWorker(difficulty: Difficulty): WorkerProfile {
-  return difficulty === "cheap" ? "cheap_ci_worker" : "deep_ci_worker";
 }
 
 function clampConfidence(confidence: number): number {

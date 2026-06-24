@@ -489,7 +489,7 @@ describe("triageCiFailureWorkflow", () => {
       status: "escalated",
       worker: "deep_ci_worker",
       attemptedWorkers: ["cheap_ci_worker", "deep_ci_worker"],
-      escalation: { target: "human" },
+      reason: "deep_ci_worker exhausted automated remediation.",
     });
     expect(comments).toHaveLength(1);
     expect(comments[0]).toMatchObject({

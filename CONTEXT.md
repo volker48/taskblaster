@@ -24,9 +24,15 @@ A finite unit of work with a known input, result, and completion boundary.
 _Avoid_: Job, agent
 
 **Router**:
-A model-assisted component that classifies candidate work and chooses the next
-worker based on expected difficulty.
+A model-assisted component that classifies candidate work by expected
+difficulty. It does not choose a worker; the Escalation Ladder does.
 _Avoid_: Dispatcher, orchestrator
+
+**Escalation Ladder**:
+A deterministic ordered chain of workers. The classified difficulty selects the
+entry rung; an unresolved attempt climbs to the next rung; climbing past the top
+rung escalates to a human.
+_Avoid_: Pipeline, chain of responsibility
 
 **Worker**:
 A model-backed or deterministic component that attempts a selected remediation.

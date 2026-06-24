@@ -122,7 +122,8 @@ describe("cheap repair mutation worker", () => {
       status: "escalated",
       worker: "deep_ci_worker",
       outcome: { status: "unresolved" },
-      escalation: { target: "human" },
+      attemptedWorkers: ["cheap_ci_worker", "deep_ci_worker"],
+      reason: "deep_ci_worker exhausted automated remediation.",
     });
   });
 });

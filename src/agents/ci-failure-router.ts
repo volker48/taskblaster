@@ -3,7 +3,8 @@ import { local } from "@flue/runtime/node";
 
 const cheapCiWorker = defineAgentProfile({
   name: "cheap_ci_worker",
-  model: "openai/gpt-5.4-mini",
+  model: "openai/gpt-5.5",
+  thinkingLevel: "low",
   description: "Handles simple CI remediation such as formatting or lint fixes.",
   instructions: [
     "You fix low-risk CI failures directly.",
@@ -15,6 +16,7 @@ const cheapCiWorker = defineAgentProfile({
 const deepCiWorker = defineAgentProfile({
   name: "deep_ci_worker",
   model: "openai/gpt-5.5",
+  thinkingLevel: "high",
   description: "Handles complex CI failures and correctness-risk review comments.",
   instructions: [
     "You fix complex CI failures that require careful reasoning.",
@@ -25,6 +27,7 @@ const deepCiWorker = defineAgentProfile({
 
 export default createAgent(() => ({
   model: "openai/gpt-5.5",
+  thinkingLevel: "medium",
   sandbox: local(),
   instructions: [
     "Route CI failure candidates to the cheapest worker that can fix them safely.",

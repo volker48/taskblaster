@@ -1,16 +1,15 @@
 import {
   routeCiFailure,
-  type CiFailureRouteDecision,
   type CiFailureRouteRequest,
   type CiFailureRouterModel,
   type WorkerProfile,
 } from "../router/ciFailureRouter.ts";
+import type { CiFailureWorkerMap, WorkerOutcome } from "../workers/ciFailureWorkers.ts";
 import {
-  nextEscalation,
+  climbEscalationLadder,
   validateCiFailureWorkerMap,
-  type CiFailureWorkerMap,
-  type WorkerOutcome,
-} from "../workers/ciFailureWorkers.ts";
+  type ClimbOutcome,
+} from "../escalation/ladder.ts";
 import {
   buildStackedPullRequestRequest,
   type StackedPullRequestCreator,
@@ -18,7 +17,6 @@ import {
 } from "../providers/github/index.ts";
 import {
   TRIAGE_CI_FAILURE_WORKFLOW,
-  type Escalation,
   type TriageCiFailureCandidate,
   type Workflow,
 } from "../domain/index.ts";
@@ -36,8 +34,8 @@ export type TriageCiFailureResult =
       status: "escalated";
       worker: WorkerProfile;
       outcome: WorkerOutcome;
-      escalation: Escalation<WorkerProfile>;
       attemptedWorkers: readonly WorkerProfile[];
+      reason: string;
     };
 
 export type TriageCiFailureDependencies = {
@@ -201,25 +199,18 @@ export async function triageCiFailureWorkflow(
   input: TriageCiFailureCandidate,
   dependencies: TriageCiFailureDependencies,
 ): Promise<TriageCiFailureResult> {
-  const dependenciesWithValidatedWorkers = {
-    ...dependencies,
-    workers: validateCiFailureWorkerMap(dependencies.workers),
-  };
+  const workers = validateCiFailureWorkerMap(dependencies.workers);
   const candidate = precheckTriageCiFailure(input);
 
   if (!candidate) {
     return { status: "no_candidate", reason: "No CI failure candidate to route." };
   }
 
-  const decision = await routeCiFailure(dependenciesWithValidatedWorkers.routerModel, candidate);
-  const result = await attemptWorkerWithEscalation(
-    candidate,
-    decision,
-    dependenciesWithValidatedWorkers.workers,
-    dependenciesWithValidatedWorkers.stackedPullRequests,
-  );
+  const classification = await routeCiFailure(dependencies.routerModel, candidate);
+  const climb = await climbEscalationLadder(candidate, classification, workers);
+  const result = await finalizeClimb(candidate, climb, dependencies.stackedPullRequests);
 
-  if (result.status === "escalated" && result.escalation.target === "human") {
+  if (result.status === "escalated") {
     await dependencies.humanEscalationPublisher?.publish(
       buildHumanEscalationOutput(candidate, result),
     );
@@ -242,65 +233,26 @@ export function precheckTriageCiFailure(
   return input.input.changeRequest.headSha.trim() === "" ? null : input;
 }
 
-async function attemptWorkerWithEscalation(
+async function finalizeClimb(
   request: CiFailureRouteRequest,
-  decision: CiFailureRouteDecision,
-  workers: CiFailureWorkerMap,
+  climb: ClimbOutcome,
   stackedPullRequests?: StackedPullRequestCreator,
 ): Promise<TriageCiFailureResult> {
-  const firstAttempt = await attemptWorker(request, decision, workers);
-
-  if (firstAttempt.outcome.status === "resolved") {
-    return resolveWorkerAttempt(
-      request,
-      { worker: firstAttempt.worker, outcome: firstAttempt.outcome },
-      stackedPullRequests,
-    );
-  }
-
-  const escalation = nextEscalation(firstAttempt.worker);
-
-  if (escalation.target === "human") {
+  if (climb.status === "escalated") {
     return {
       status: "escalated",
-      ...firstAttempt,
-      escalation,
-      attemptedWorkers: [firstAttempt.worker],
+      worker: climb.worker,
+      outcome: climb.outcome,
+      attemptedWorkers: climb.attemptedWorkers,
+      reason: climb.reason,
     };
   }
 
-  const nextDecision: CiFailureRouteDecision = {
-    ...decision,
-    difficulty: "deep",
-    workerId: escalation.workerId,
-  };
-  const secondAttempt = await attemptWorker(request, nextDecision, workers);
-
-  if (secondAttempt.outcome.status === "resolved") {
-    return resolveWorkerAttempt(
-      request,
-      { worker: secondAttempt.worker, outcome: secondAttempt.outcome },
-      stackedPullRequests,
-    );
-  }
-
-  return {
-    status: "escalated",
-    ...secondAttempt,
-    escalation: nextEscalation(secondAttempt.worker),
-    attemptedWorkers: [firstAttempt.worker, secondAttempt.worker],
-  };
-}
-
-async function attemptWorker(
-  request: CiFailureRouteRequest,
-  decision: CiFailureRouteDecision,
-  workers: CiFailureWorkerMap,
-): Promise<{ worker: WorkerProfile; outcome: WorkerOutcome }> {
-  const worker = workers[decision.workerId];
-  const outcome = await worker.attempt({ request, decision });
-
-  return { worker: worker.profile, outcome };
+  return resolveWorkerAttempt(
+    request,
+    { worker: climb.worker, outcome: climb.outcome },
+    stackedPullRequests,
+  );
 }
 
 async function resolveWorkerAttempt(

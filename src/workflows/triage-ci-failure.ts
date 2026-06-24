@@ -3,7 +3,8 @@ import * as v from "valibot";
 import ciFailureRouter from "../agents/ci-failure-router";
 import type { CiFailureRouterModel } from "../router/ciFailureRouter";
 import { triageCiFailureWorkflow } from "../loops/triageCiFailure";
-import { validateCiFailureWorkerMap, type CiFailureWorker } from "../workers/ciFailureWorkers";
+import { validateCiFailureWorkerMap } from "../escalation/ladder";
+import type { CiFailureWorker } from "../workers/ciFailureWorkers";
 import type { TriageCiFailureCandidate } from "../domain";
 
 const RouteDecisionSchema = v.object({
